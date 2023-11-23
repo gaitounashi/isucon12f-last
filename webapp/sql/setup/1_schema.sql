@@ -1,5 +1,5 @@
 USE `isucon`;
---ブランチ確認したい
+--ブランチ確認したい G2
 DROP TABLE IF EXISTS `admin_sessions`;
 DROP TABLE IF EXISTS `user_sessions`;
 DROP TABLE IF EXISTS `user_one_time_tokens`;
