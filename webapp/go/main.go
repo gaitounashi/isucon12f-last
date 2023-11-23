@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"math/rand"
 	"net/http"
@@ -19,6 +20,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/pkg/errors"
+
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -42,14 +45,14 @@ const (
 	DeckCardNumber      int = 3
 	PresentCountPerPage int = 100
 
-	SQLDirectory string = "../sql/"
-	ISUCON_DB_HOST2 = "27.133.132.13"
-	ISUCON_DB_HOST3 = "163.43.107.26"
-	ISUCON_DB_HOST4 = "27.133.131.105"
+	SQLDirectory    string = "../sql/"
+	ISUCON_DB_HOST2        = "27.133.132.13"
+	ISUCON_DB_HOST3        = "163.43.107.26"
+	ISUCON_DB_HOST4        = "27.133.131.105"
 )
 
 type Handler struct {
-	DB *sqlx.DB
+	DB  *sqlx.DB
 	DB2 *sqlx.DB
 	DB3 *sqlx.DB
 	DB4 *sqlx.DB
@@ -68,10 +71,10 @@ func main() {
 		AllowHeaders: []string{"Content-Type", "x-master-version", "x-session"},
 	}))
 
-	dbx, err := connectDB(1,false)
-	dbx2, err := connectDB(2,false)
-	dbx3, err := connectDB(3,false)
-	dbx4, err := connectDB(4,false)
+	dbx, err := connectDB(1, false)
+	dbx2, err := connectDB(2, false)
+	dbx3, err := connectDB(3, false)
+	dbx4, err := connectDB(4, false)
 
 	if err != nil {
 		e.Logger.Fatalf("failed to connect to db: %v", err)
@@ -82,7 +85,7 @@ func main() {
 
 	e.Server.Addr = fmt.Sprintf(":%v", "8080")
 	h := &Handler{
-		DB: dbx,
+		DB:  dbx,
 		DB2: dbx2,
 		DB3: dbx3,
 		DB4: dbx4,
@@ -218,9 +221,15 @@ func (h *Handler) checkSessionMiddleware(next echo.HandlerFunc) echo.HandlerFunc
 
 		userSession := new(Session)
 		var DB *sqlx.DB
-		if (userID % 4 == 1){DB = h.DB}
-		if (userID % 4 == 2){DB = h.DB2}
-		if (userID % 4 == 3){DB = h.DB3}
+		if userID%4 == 1 {
+			DB = h.DB
+		}
+		if userID%4 == 2 {
+			DB = h.DB2
+		}
+		if userID%4 == 3 {
+			DB = h.DB3
+		}
 		query := "SELECT * FROM user_sessions WHERE session_id=? AND deleted_at IS NULL"
 		if err := DB.Get(userSession, query, sessID); err != nil {
 			if err == sql.ErrNoRows {
@@ -254,9 +263,15 @@ func (h *Handler) checkOneTimeToken(token string, tokenType int, requestAt int64
 	tk := new(UserOneTimeToken)
 	query := "SELECT * FROM user_one_time_tokens WHERE token=? AND token_type=? AND deleted_at IS NULL"
 	var DB *sqlx.DB
-	if (userID % 4 == 1){DB = h.DB}
-	if (userID % 4 == 2){DB = h.DB2}
-	if (userID % 4 == 3){DB = h.DB3}
+	if userID%4 == 1 {
+		DB = h.DB
+	}
+	if userID%4 == 2 {
+		DB = h.DB2
+	}
+	if userID%4 == 3 {
+		DB = h.DB3
+	}
 	if err := DB.Get(tk, query, token, tokenType); err != nil {
 		if err == sql.ErrNoRows {
 			return ErrInvalidToken
@@ -285,9 +300,15 @@ func (h *Handler) checkOneTimeToken(token string, tokenType int, requestAt int64
 func (h *Handler) checkViewerID(userID int64, viewerID string) error {
 	query := "SELECT * FROM user_devices WHERE user_id=? AND platform_id=?"
 	var DB *sqlx.DB
-	if (userID % 4 == 1){DB = h.DB}
-	if (userID % 4 == 2){DB = h.DB2}
-	if (userID % 4 == 3){DB = h.DB3}
+	if userID%4 == 1 {
+		DB = h.DB
+	}
+	if userID%4 == 2 {
+		DB = h.DB2
+	}
+	if userID%4 == 3 {
+		DB = h.DB3
+	}
 	device := new(UserDevice)
 	if err := DB.Get(device, query, userID, viewerID); err != nil {
 		if err == sql.ErrNoRows {
@@ -305,9 +326,15 @@ func (h *Handler) checkBan(userID int64) (bool, error) {
 	query := "SELECT * FROM user_bans WHERE user_id=?"
 
 	var DB *sqlx.DB
-	if (userID % 4 == 1){DB = h.DB}
-	if (userID % 4 == 2){DB = h.DB2}
-	if (userID % 4 == 3){DB = h.DB3}
+	if userID%4 == 1 {
+		DB = h.DB
+	}
+	if userID%4 == 2 {
+		DB = h.DB2
+	}
+	if userID%4 == 3 {
+		DB = h.DB3
+	}
 
 	if err := DB.Get(banUser, query, userID); err != nil {
 		if err == sql.ErrNoRows {
@@ -643,11 +670,10 @@ func (h *Handler) obtainItem(tx *sqlx.Tx, userID, itemID int64, itemType int, ob
 // initialize 初期化処理
 // POST /initialize
 
-import 	"golang.org/x/sync/errgroup"
-
 const (
 	SQLDirectory string = "../sql/"
 )
+
 func initialize(c echo.Context) error {
 	c.Logger().Error("initializing....")
 	bothInit()
@@ -772,9 +798,15 @@ func (h *Handler) createUser(c echo.Context) error {
 	}
 
 	var DB *sqlx.DB
-	if (userID % 4 == 1){DB = h.DB}
-	if (userID % 4 == 2){DB = h.DB2}
-	if (userID % 4 == 3){DB = h.DB3}
+	if userID%4 == 1 {
+		DB = h.DB
+	}
+	if userID%4 == 2 {
+		DB = h.DB2
+	}
+	if userID%4 == 3 {
+		DB = h.DB3
+	}
 	tx, err := DB.Beginx()
 	if err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
@@ -947,9 +979,15 @@ func (h *Handler) login(c echo.Context) error {
 	user := new(User)
 	query := "SELECT * FROM users WHERE id=?"
 	var DB *sqlx.DB
-	if (req.UserID % 4 == 1){DB = h.DB}
-	if (req.UserID % 4 == 2){DB = h.DB2}
-	if (ureq.UserID % 4 == 3){DB = h.DB3}
+	if req.UserID%4 == 1 {
+		DB = h.DB
+	}
+	if req.UserID%4 == 2 {
+		DB = h.DB2
+	}
+	if ureq.UserID%4 == 3 {
+		DB = h.DB3
+	}
 
 	if err := DB.Get(user, query, req.UserID); err != nil {
 		if err == sql.ErrNoRows {
@@ -1075,7 +1113,6 @@ func (h *Handler) listGacha(c echo.Context) error {
 
 	gachaMasterList := []*GachaMaster{}
 
-
 	query := "SELECT * FROM gacha_masters WHERE start_at <= ? AND end_at >= ? ORDER BY display_order ASC"
 	err = h.DB.Select(&gachaMasterList, query, requestAt, requestAt)
 	if err != nil {
@@ -1109,12 +1146,17 @@ func (h *Handler) listGacha(c echo.Context) error {
 
 	// ガチャ実行用のワンタイムトークンの発行
 	query = "UPDATE user_one_time_tokens SET deleted_at=? WHERE user_id=? AND deleted_at IS NULL"
-	
-	var DB *sqlx.DB
-	if (userID % 4 == 1){DB = h.DB}
-	if (userID % 4 == 2){DB = h.DB2}
-	if (userID % 4 == 3){DB = h.DB3}
 
+	var DB *sqlx.DB
+	if userID%4 == 1 {
+		DB = h.DB
+	}
+	if userID%4 == 2 {
+		DB = h.DB2
+	}
+	if userID%4 == 3 {
+		DB = h.DB3
+	}
 
 	if _, err = DB.Exec(query, requestAt, userID); err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
@@ -1209,10 +1251,15 @@ func (h *Handler) drawGacha(c echo.Context) error {
 	query := "SELECT * FROM users WHERE id=?"
 
 	var DB *sqlx.DB
-	if ( % 4 == 1){DB = h.DB}
-	if (req.UserID % 4 == 2){DB = h.DB2}
-	if (ureq.UserID % 4 == 3){DB = h.DB3}
-
+	if userID%4 == 1 {
+		DB = h.DB
+	}
+	if userID%4 == 2 {
+		DB = h.DB2
+	}
+	if userID%4 == 3 {
+		DB = h.DB3
+	}
 
 	if err := DB.Get(user, query, userID); err != nil {
 		if err == sql.ErrNoRows {
@@ -1267,9 +1314,15 @@ func (h *Handler) drawGacha(c echo.Context) error {
 	}
 
 	var DB *sqlx.DB
-	if (userID % 4 == 1){DB = h.DB}
-	if (userID % 4 == 2){DB = h.DB2}
-	if (userID % 4 == 3){DB = h.DB3}
+	if userID%4 == 1 {
+		DB = h.DB
+	}
+	if userID%4 == 2 {
+		DB = h.DB2
+	}
+	if userID%4 == 3 {
+		DB = h.DB3
+	}
 
 	tx, err := DB.Beginx()
 	if err != nil {
@@ -1348,10 +1401,15 @@ func (h *Handler) listPresent(c echo.Context) error {
 	presentList := []*UserPresent{}
 
 	var DB *sqlx.DB
-	if ( % 4 == 1){DB = h.DB}
-	if (req.UserID % 4 == 2){DB = h.DB2}
-	if (ureq.UserID % 4 == 3){DB = h.DB3}
-
+	if userID%4 == 1 {
+		DB = h.DB
+	}
+	if userID%4 == 2 {
+		DB = h.DB2
+	}
+	if userID%4 == 3 {
+		DB = h.DB3
+	}
 
 	query := `
 	SELECT * FROM user_presents 
@@ -1414,10 +1472,15 @@ func (h *Handler) receivePresent(c echo.Context) error {
 	}
 
 	var DB *sqlx.DB
-	if ( % 4 == 1){DB = h.DB}
-	if (req.UserID % 4 == 2){DB = h.DB2}
-	if (ureq.UserID % 4 == 3){DB = h.DB3}
-
+	if userID%4 == 1 {
+		DB = h.DB
+	}
+	if userID%4 == 2 {
+		DB = h.DB2
+	}
+	if userID%4 == 3 {
+		DB = h.DB3
+	}
 
 	// 未取得のプレゼント取得
 	query := "SELECT * FROM user_presents WHERE id IN (?) AND deleted_at IS NULL"
@@ -1505,9 +1568,15 @@ func (h *Handler) listItem(c echo.Context) error {
 	query := "SELECT * FROM users WHERE id=?"
 
 	var DB *sqlx.DB
-	if (userID % 4 == 1){DB = h.DB}
-	if (userID % 4 == 2){DB = h.DB2}
-	if (userID % 4 == 3){DB = h.DB3}
+	if userID%4 == 1 {
+		DB = h.DB
+	}
+	if userID%4 == 2 {
+		DB = h.DB2
+	}
+	if userID%4 == 3 {
+		DB = h.DB3
+	}
 
 	if err = DB.Get(user, query, userID); err != nil {
 		if err == sql.ErrNoRows {
@@ -1617,12 +1686,16 @@ func (h *Handler) addExpToCard(c echo.Context) error {
 	WHERE uc.id = ? AND uc.user_id=?
 	`
 
-
 	var DB *sqlx.DB
-	if (userID % 4 == 1){DB = h.DB}
-	if (userID % 4 == 2){DB = h.DB2}
-	if (userID % 4 == 3){DB = h.DB3}
-
+	if userID%4 == 1 {
+		DB = h.DB
+	}
+	if userID%4 == 2 {
+		DB = h.DB2
+	}
+	if userID%4 == 3 {
+		DB = h.DB3
+	}
 
 	if err = DB.Get(card, query, cardID, userID); err != nil {
 		if err == sql.ErrNoRows {
@@ -1673,7 +1746,7 @@ func (h *Handler) addExpToCard(c echo.Context) error {
 		card.Level += 1
 		card.AmountPerSec += (card.MaxAmountPerSec - card.BaseAmountPerSec) / (card.MaxLevel - 1)
 	}
-	
+
 	tx, err := DB.Beginx()
 	if err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
@@ -1803,9 +1876,15 @@ func (h *Handler) updateDeck(c echo.Context) error {
 	cards := make([]*UserCard, 0)
 
 	var DB *sqlx.DB
-	if (userID % 4 == 1){DB = h.DB}
-	if (userID % 4 == 2){DB = h.DB2}
-	if (userID % 4 == 3){DB = h.DB3}
+	if userID%4 == 1 {
+		DB = h.DB
+	}
+	if userID%4 == 2 {
+		DB = h.DB2
+	}
+	if userID%4 == 3 {
+		DB = h.DB3
+	}
 
 	if err = DB.Select(&cards, query, params...); err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
@@ -1893,9 +1972,15 @@ func (h *Handler) reward(c echo.Context) error {
 	query := "SELECT * FROM users WHERE id=?"
 
 	var DB *sqlx.DB
-	if (userID % 4 == 1){DB = h.DB}
-	if (userID % 4 == 2){DB = h.DB2}
-	if (userID % 4 == 3){DB = h.DB3}
+	if userID%4 == 1 {
+		DB = h.DB
+	}
+	if userID%4 == 2 {
+		DB = h.DB2
+	}
+	if userID%4 == 3 {
+		DB = h.DB3
+	}
 
 	if err = DB.Get(user, query, userID); err != nil {
 		if err == sql.ErrNoRows {
@@ -1959,9 +2044,15 @@ func (h *Handler) home(c echo.Context) error {
 		return errorResponse(c, http.StatusInternalServerError, ErrGetRequestTime)
 	}
 	var DB *sqlx.DB
-	if (userID % 4 == 1){DB = h.DB}
-	if (userID % 4 == 2){DB = h.DB2}
-	if (userID % 4 == 3){DB = h.DB3}
+	if userID%4 == 1 {
+		DB = h.DB
+	}
+	if userID%4 == 2 {
+		DB = h.DB2
+	}
+	if userID%4 == 3 {
+		DB = h.DB3
+	}
 
 	deck := new(UserDeck)
 	query := "SELECT * FROM user_decks WHERE user_id=? AND deleted_at IS NULL"
